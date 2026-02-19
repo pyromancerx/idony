@@ -1,0 +1,6 @@
+# Idony Git Ignore
+idony
+idony.db
+*.exe
+*.log
+.DS_Store
