@@ -1,5 +1,6 @@
 # Idony Git Ignore
 idony
+idony-browser
 idony.db
 *.exe
 *.log

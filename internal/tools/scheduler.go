@@ -8,7 +8,7 @@ import (
 )
 
 type SchedulerStore interface {
-	SaveTask(taskType, schedule, prompt string) error
+	SaveTask(taskType, schedule, prompt, targetType, targetName string) error
 }
 
 // ScheduleTool allows Idony to schedule future prompts.
@@ -25,14 +25,16 @@ func (s *ScheduleTool) Name() string {
 }
 
 func (s *ScheduleTool) Description() string {
-	return `Schedules a task. Input must be a JSON object: {"type": "one-shot|recurring", "schedule": "RFC3339|cron", "prompt": "the prompt Idony should run"}`
+	return `Schedules a task. Input must be a JSON object: {"type": "one-shot|recurring", "schedule": "RFC3339|cron", "prompt": "the prompt Idony should run", "target_type": "main|subagent|council", "target_name": "name of agent or council"}`
 }
 
 func (s *ScheduleTool) Execute(ctx context.Context, input string) (string, error) {
 	var task struct {
-		Type     string `json:"type"`
-		Schedule string `json:"schedule"`
-		Prompt   string `json:"prompt"`
+		Type       string `json:"type"`
+		Schedule   string `json:"schedule"`
+		Prompt     string `json:"prompt"`
+		TargetType string `json:"target_type"`
+		TargetName string `json:"target_name"`
 	}
 
 	if err := json.Unmarshal([]byte(input), &task); err != nil {
@@ -50,10 +52,15 @@ func (s *ScheduleTool) Execute(ctx context.Context, input string) (string, error
 		}
 	}
 
-	err := s.store.SaveTask(task.Type, task.Schedule, task.Prompt)
+	// Default to "main" if not specified
+	if task.TargetType == "" {
+		task.TargetType = "main"
+	}
+
+	err := s.store.SaveTask(task.Type, task.Schedule, task.Prompt, task.TargetType, task.TargetName)
 	if err != nil {
 		return "", fmt.Errorf("failed to save task to db: %w", err)
 	}
 
-	return fmt.Sprintf("Successfully scheduled %s task for %s", task.Type, task.Schedule), nil
+	return fmt.Sprintf("Successfully scheduled %s task for %s (Target: %s/%s)", task.Type, task.Schedule, task.TargetType, task.TargetName), nil
 }

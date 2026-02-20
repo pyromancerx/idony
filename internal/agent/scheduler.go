@@ -11,16 +11,20 @@ import (
 )
 
 type Scheduler struct {
-	cron    *cron.Cron
-	agent   *Agent
-	store   *db.Store
+	cron           *cron.Cron
+	agent          *Agent
+	store          *db.Store
+	subManager     *SubAgentManager
+	councilManager *CouncilManager
 }
 
-func NewScheduler(agent *Agent, store *db.Store) *Scheduler {
+func NewScheduler(agent *Agent, store *db.Store, subManager *SubAgentManager, councilManager *CouncilManager) *Scheduler {
 	return &Scheduler{
-		cron:  cron.New(cron.WithSeconds()), // Support seconds if needed
-		agent: agent,
-		store: store,
+		cron:           cron.New(cron.WithSeconds()), // Support seconds if needed
+		agent:          agent,
+		store:          store,
+		subManager:     subManager,
+		councilManager: councilManager,
 	}
 }
 
@@ -69,10 +73,19 @@ func (s *Scheduler) schedule(ctx context.Context, task db.ScheduledTask) {
 }
 
 func (s *Scheduler) executeTask(ctx context.Context, task db.ScheduledTask) {
-	fmt.Printf("\n[Scheduler]: Running scheduled task: %s\n", task.Prompt)
-	
-	// Run the prompt through the agent
-	_, err := s.agent.Run(ctx, fmt.Sprintf("[Scheduled Task]: %s", task.Prompt))
+	fmt.Printf("\n[Scheduler]: Running scheduled task: %s (Target: %s/%s)\n", task.Prompt, task.TargetType, task.TargetName)
+
+	var err error
+	switch task.TargetType {
+	case "subagent":
+		_, err = s.subManager.SpawnNamed(ctx, task.TargetName, task.Prompt)
+	case "council":
+		_, err = s.councilManager.RunCouncilSession(ctx, task.TargetName, task.Prompt)
+	default:
+		// Default is "main"
+		_, err = s.agent.Run(ctx, fmt.Sprintf("[Scheduled Task]: %s", task.Prompt))
+	}
+
 	if err != nil {
 		log.Printf("Error executing scheduled task %d: %v", task.ID, err)
 		return
@@ -87,14 +100,13 @@ func (s *Scheduler) executeTask(ctx context.Context, task db.ScheduledTask) {
 	}
 }
 
-func (s *Scheduler) AddTask(ctx context.Context, taskType, schedule, prompt string) error {
-	err := s.store.SaveTask(taskType, schedule, prompt)
+func (s *Scheduler) AddTask(ctx context.Context, taskType, schedule, prompt, targetType, targetName string) error {
+	err := s.store.SaveTask(taskType, schedule, prompt, targetType, targetName)
 	if err != nil {
 		return err
 	}
 	
 	// Reload/Reschedule is easiest for a small number of tasks
-	// In a high-perf system we'd find the newly added ID
 	s.loadAndScheduleTasks(ctx)
 	return nil
 }

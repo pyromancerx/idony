@@ -39,6 +39,8 @@ func NewStore(dbPath string) (*Store, error) {
 		task_type TEXT NOT NULL, -- "one-shot" or "recurring"
 		schedule TEXT NOT NULL,  -- Cron string or RFC3339 timestamp
 		prompt TEXT NOT NULL,    -- The prompt Idony should run
+		target_type TEXT DEFAULT 'main', -- "main", "subagent", "council"
+		target_name TEXT,                -- Name of the sub-agent or council
 		last_run DATETIME
 	);
 	CREATE TABLE IF NOT EXISTS settings (
@@ -53,6 +55,16 @@ func NewStore(dbPath string) (*Store, error) {
 		result TEXT,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		finished_at DATETIME
+	);
+	CREATE TABLE IF NOT EXISTS sub_agent_definitions (
+		name TEXT PRIMARY KEY,
+		personality TEXT NOT NULL,
+		tools TEXT NOT NULL, -- Comma-separated list of tool names
+		model TEXT           -- Optional model override
+	);
+	CREATE TABLE IF NOT EXISTS councils (
+		name TEXT PRIMARY KEY,
+		members TEXT NOT NULL -- Comma-separated list of sub-agent names
 	);`
 
 	if _, err := db.Exec(schema); err != nil {
@@ -60,6 +72,87 @@ func NewStore(dbPath string) (*Store, error) {
 	}
 
 	return &Store{DB: db}, nil
+}
+
+type Council struct {
+	Name    string
+	Members string
+}
+
+func (s *Store) SaveCouncil(name, members string) error {
+	_, err := s.DB.Exec("INSERT OR REPLACE INTO councils (name, members) VALUES (?, ?)", name, members)
+	return err
+}
+
+func (s *Store) GetCouncils() ([]Council, error) {
+	rows, err := s.DB.Query("SELECT name, members FROM councils")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var councils []Council
+	for rows.Next() {
+		var c Council
+		if err := rows.Scan(&c.Name, &c.Members); err != nil {
+			return nil, err
+		}
+		councils = append(councils, c)
+	}
+	return councils, nil
+}
+
+func (s *Store) GetCouncil(name string) (*Council, error) {
+	var c Council
+	err := s.DB.QueryRow("SELECT name, members FROM councils WHERE name = ?", name).Scan(&c.Name, &c.Members)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &c, err
+}
+
+func (s *Store) DeleteCouncil(name string) error {
+	_, err := s.DB.Exec("DELETE FROM councils WHERE name = ?", name)
+	return err
+}
+
+type SubAgentDefinition struct {
+	Name        string
+	Personality string
+	Tools       string
+	Model       string
+}
+
+func (s *Store) SaveSubAgentDefinition(name, personality, tools, model string) error {
+	_, err := s.DB.Exec("INSERT OR REPLACE INTO sub_agent_definitions (name, personality, tools, model) VALUES (?, ?, ?, ?)", name, personality, tools, model)
+	return err
+}
+
+func (s *Store) GetSubAgentDefinitions() ([]SubAgentDefinition, error) {
+	rows, err := s.DB.Query("SELECT name, personality, tools, COALESCE(model, '') FROM sub_agent_definitions")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var defs []SubAgentDefinition
+	for rows.Next() {
+		var d SubAgentDefinition
+		if err := rows.Scan(&d.Name, &d.Personality, &d.Tools, &d.Model); err != nil {
+			return nil, err
+		}
+		defs = append(defs, d)
+	}
+	return defs, nil
+}
+
+func (s *Store) GetSubAgentDefinition(name string) (*SubAgentDefinition, error) {
+	var d SubAgentDefinition
+	err := s.DB.QueryRow("SELECT name, personality, tools, COALESCE(model, '') FROM sub_agent_definitions WHERE name = ?", name).Scan(&d.Name, &d.Personality, &d.Tools, &d.Model)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	return &d, err
 }
 
 type SubAgentTask struct {
@@ -138,20 +231,22 @@ func (s *Store) SetSetting(key, value string) error {
 }
 
 type ScheduledTask struct {
-	ID       int
-	Type     string
-	Schedule string
-	Prompt   string
-	LastRun  *time.Time
+	ID         int
+	Type       string
+	Schedule   string
+	Prompt     string
+	TargetType string
+	TargetName string
+	LastRun    *time.Time
 }
 
-func (s *Store) SaveTask(taskType, schedule, prompt string) error {
-	_, err := s.DB.Exec("INSERT INTO scheduled_tasks (task_type, schedule, prompt) VALUES (?, ?, ?)", taskType, schedule, prompt)
+func (s *Store) SaveTask(taskType, schedule, prompt, targetType, targetName string) error {
+	_, err := s.DB.Exec("INSERT INTO scheduled_tasks (task_type, schedule, prompt, target_type, target_name) VALUES (?, ?, ?, ?, ?)", taskType, schedule, prompt, targetType, targetName)
 	return err
 }
 
 func (s *Store) LoadTasks() ([]ScheduledTask, error) {
-	rows, err := s.DB.Query("SELECT id, task_type, schedule, prompt, last_run FROM scheduled_tasks")
+	rows, err := s.DB.Query("SELECT id, task_type, schedule, prompt, COALESCE(target_type, 'main'), COALESCE(target_name, ''), last_run FROM scheduled_tasks")
 	if err != nil {
 		return nil, err
 	}
@@ -160,7 +255,7 @@ func (s *Store) LoadTasks() ([]ScheduledTask, error) {
 	var tasks []ScheduledTask
 	for rows.Next() {
 		var t ScheduledTask
-		if err := rows.Scan(&t.ID, &t.Type, &t.Schedule, &t.Prompt, &t.LastRun); err != nil {
+		if err := rows.Scan(&t.ID, &t.Type, &t.Schedule, &t.Prompt, &t.TargetType, &t.TargetName, &t.LastRun); err != nil {
 			return nil, err
 		}
 		tasks = append(tasks, t)

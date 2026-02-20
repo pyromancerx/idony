@@ -1,51 +1,56 @@
 # GEMINI.md - Project Context: Idony
 
-This file provides the necessary architectural and operational context for the **Idony** project to ensure efficient and consistent assistance from Gemini.
+This file provides architectural and operational context for **Idony**, a highly opinionated, extensible AI agent system.
 
 ## Project Overview
 
-**Idony** is currently an empty project directory. Based on the project initialization command (`/init`), it is in its earliest stage of development. The directory serves as a fresh workspace, ready for the establishment of a new codebase or documentation repository.
+**Idony** is a Go-based multi-agent system featuring a TUI interface, SQLite persistence, and a modular tool architecture. It is designed to manage a team of specialized sub-agents and facilitate collaborative problem-solving through a "Council" system.
 
-- **Status:** Initialized / Empty
-- **Project Type:** To be determined (Categorized as Non-Code Project for initial context)
-- **Primary Goal:** Initialize and develop the Idony project from scratch.
+- **Status:** v1.3.0 (Multi-Target Scheduling & Specialized Agents)
+- **Language:** Go (Golang)
+- **TUI Framework:** `github.com/rivo/tview`
+- **Database:** SQLite (CGO-free via `modernc.org/sqlite`)
+- **LLM Backend:** Ollama (Local)
+- **Coding Engine:** `gemini-cli`
 
-## Directory Overview
+## Core Architecture
 
-As the project is newly initialized, the current structure is minimal:
+### 1. Agentic Loop
+Idony operates on a structured **Think -> Plan -> Act -> Observe** cycle.
+- **Thought:** LLM reasoning in JSON format.
+- **Action:** Tool execution or final response.
+- **Observation:** Result of tool execution fed back to the LLM.
 
-- `/`: Root directory of the Idony project.
-- `GEMINI.md`: This context file, providing instructions and project state to Gemini.
+### 2. Specialized Sub-Agents
+- **Definitions:** unique personas with specific personalities, restricted toolsets, and model overrides.
+- **Persistence:** Definitions and tasks are stored in SQLite.
+- **Monitoring:** Active sub-agents are tracked in real-time in the UI.
 
-### Anticipated Structure
+### 3. Council System
+- **Collaboration:** Groups of sub-agents can be tasked with solving a single problem together.
+- **Multi-turn:** Discussion occurs in rounds where agents see each other's contributions.
 
-For a standard development project, the following directories are typically expected as the project grows:
+### 4. Modular Tools
+- **Extensible:** New tools implement a simple `Tool` interface.
+- **Direct Access:** All tools are available as `/command` in the terminal.
+- **Configurable:** Uses a modular `config.txt` for all tool settings.
 
-- `src/`: Core source code or content.
-- `docs/`: Project documentation and research.
-- `tests/`: Automated test suites.
-- `config/`: Configuration files for build systems or environments.
-- `scripts/`: Utility scripts for automation.
+## Directory Structure
+- `cmd/idony/`: Main entry point and TUI logic.
+- `internal/agent/`: Core agent, sub-agent manager, scheduler, and council logic.
+- `internal/llm/`: Ollama API client.
+- `internal/tools/`: Built-in capabilities (Gemini, SwarmUI, Browser, etc.).
+- `internal/db/`: Persistence layer.
+- `internal/config/`: Modular configuration management.
 
-## Usage
-
-This project is ready for its first implementation steps. Gemini can assist in the following areas:
-
-1. **Scaffolding:** Initializing the project with preferred frameworks (e.g., `npm init`, `cargo init`, `git init`).
-2. **Planning:** Drafting requirements, architectural designs, or `README.md` content.
-3. **Development:** Implementing the first features or documents once the project type is established.
-
-### Commands
-
-Currently, no project-specific build or test commands are defined. Once a project type is selected, key commands (e.g., `npm start`, `make build`, `pytest`) should be documented here.
+## Current Goals
+- **Web Browser Integration:** Building a standalone `idony-browser` utility to allow agents to surf and scrape the web.
+- **Mobile/Social Expansion:** (Planned) Integration with Telegram and Discord.
 
 ## Development Conventions
-
-As the project is currently a blank slate, no specific coding styles or contribution guidelines have been established yet. It is recommended to:
-
-- Establish a consistent naming convention.
-- Use a version control system (Git is recommended).
-- Define testing and linting standards early in the development process.
+- **JSON for Agent IO:** Always use structured JSON for agent thought processes and tool parameters.
+- **Local-First:** Prioritize local tools and models.
+- **Non-blocking:** Background tasks (sub-agents, councils) must not block the main UI thread.
 
 ---
-*Note: This file should be updated periodically as the project structure and technologies evolve.*
+*Last Updated: 2026-02-19*

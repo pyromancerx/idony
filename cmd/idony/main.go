@@ -36,15 +36,16 @@ func main() {
 	// Initialize Ollama client
 	client := llm.NewOllamaClient(ollamaURL, model)
 
-	// Initialize Agent
+	// Initialize Main Agent
 	idony := agent.NewAgent(client, store)
 
-	// Initialize Scheduler
-	scheduler := agent.NewScheduler(idony, store)
-	scheduler.Start(context.Background())
-
-	// Initialize SubAgentManager
+	// Initialize Managers
 	subManager := agent.NewSubAgentManager(client, store, idony.GetTools())
+	councilManager := agent.NewCouncilManager(client, store, subManager)
+
+	// Initialize Scheduler and start it
+	scheduler := agent.NewScheduler(idony, store, subManager, councilManager)
+	scheduler.Start(context.Background())
 
 	// Register Tools
 	idony.RegisterTool(&tools.TimeTool{})
@@ -53,16 +54,20 @@ func main() {
 	idony.RegisterTool(tools.NewConfigUpdateTool("config.txt"))
 	idony.RegisterTool(tools.NewPersonalityTool(store))
 	idony.RegisterTool(tools.NewSubAgentTool(subManager))
+	idony.RegisterTool(tools.NewCouncilTool(councilManager))
 	
 	swarmPath := conf.GetWithDefault("SWARMUI_PATH", "/home/pyromancer/swarmconnector/swarmui")
 	swarmURL := conf.GetWithDefault("SWARMUI_URL", "http://localhost:7801")
 	swarmModel := conf.GetWithDefault("SWARMUI_DEFAULT_MODEL", "v1-5-pruned-emaonly.safetensors")
 	idony.RegisterTool(tools.NewSwarmUITool(swarmPath, swarmURL, swarmModel))
 
+	// Register Browser Tool
+	browserBin := conf.GetWithDefault("BROWSER_BIN", "/home/pyromancer/browser-connector/idony-browser")
+	idony.RegisterTool(tools.NewBrowserTool(browserBin))
+
 	// TUI Setup
 	app := tview.NewApplication()
 	
-	// Main output view (scrollable)
 	outputView := tview.NewTextView().
 		SetDynamicColors(true).
 		SetRegions(true).
@@ -72,11 +77,20 @@ func main() {
 		})
 	outputView.SetBorder(true).SetTitle(" Idony Chat ")
 
-	// Side history view
-	historyView := tview.NewTextView().
-		SetDynamicColors(true).
-		SetWordWrap(true)
-	historyView.SetBorder(true).SetTitle(" History (24h) ")
+	// Side panel sections
+	historyView := tview.NewTextView().SetDynamicColors(true).SetWordWrap(true)
+	historyView.SetBorder(true).SetTitle(" Activity (24h) ")
+
+	agentsView := tview.NewTextView().SetDynamicColors(true).SetWordWrap(true)
+	agentsView.SetBorder(true).SetTitle(" Specialized Agents ")
+
+	councilsView := tview.NewTextView().SetDynamicColors(true).SetWordWrap(true)
+	councilsView.SetBorder(true).SetTitle(" Councils ")
+
+	sideFlex := tview.NewFlex().SetDirection(tview.FlexRow).
+		AddItem(historyView, 0, 1, false).
+		AddItem(agentsView, 0, 1, false).
+		AddItem(councilsView, 0, 1, false)
 	
 	// Command input
 	inputField := tview.NewInputField().
@@ -91,28 +105,28 @@ func main() {
 	
 	contentFlex := tview.NewFlex().
 		AddItem(outputView, 0, 2, true).
-		AddItem(historyView, 0, 1, false)
+		AddItem(sideFlex, 0, 1, false)
 
 	mainFlex.AddItem(contentFlex, 0, 1, true).
 		AddItem(inputField, 1, 0, true).
 		AddItem(statusBar, 1, 0, false)
 
 	// Hotkeys
-	historyHidden := false
+	sideHidden := false
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		if event.Key() == tcell.KeyCtrlH {
-			if historyHidden {
-				contentFlex.AddItem(historyView, 0, 1, false)
+			if sideHidden {
+				contentFlex.AddItem(sideFlex, 0, 1, false)
 			} else {
-				contentFlex.RemoveItem(historyView)
+				contentFlex.RemoveItem(sideFlex)
 			}
-			historyHidden = !historyHidden
+			sideHidden = !sideHidden
 			return nil
 		}
 		return event
 	})
 
-	// Periodic update for history and status
+	// Periodic update loop
 	go func() {
 		spinner := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		i := 0
@@ -123,8 +137,25 @@ func main() {
 			for _, a := range activities {
 				histText.WriteString(fmt.Sprintf("[yellow]%s[white] %s\n", a.Timestamp.Format("15:04"), a.Title))
 			}
+			
+			// Update Specialized Agents
+			defs, _ := subManager.ListDefinitions()
+			var agentsText strings.Builder
+			for _, d := range defs {
+				agentsText.WriteString(fmt.Sprintf("[green]%s[white]: %s (Model: %s)\n\n", d.Name, d.Personality, d.Model))
+			}
+
+			// Update Councils
+			councils, _ := councilManager.ListCouncils()
+			var councilsText strings.Builder
+			for _, c := range councils {
+				councilsText.WriteString(fmt.Sprintf("[blue]%s[white]: %s\n\n", c.Name, c.Members))
+			}
+
 			app.QueueUpdateDraw(func() {
 				historyView.SetText(histText.String())
+				agentsView.SetText(agentsText.String())
+				councilsView.SetText(councilsText.String())
 			})
 
 			// Update Status Bar
@@ -163,7 +194,6 @@ func main() {
 		fmt.Fprintf(outputView, "[green]You:[white] %s\n", text)
 
 		go func() {
-			// Handle direct commands or agent run
 			var response string
 			var err error
 
@@ -195,9 +225,9 @@ func main() {
 		}()
 	})
 
-	fmt.Fprintf(outputView, "[yellow]Idony AI Bot v1.0.0 (Full TUI) Initialized[white]\n")
+	fmt.Fprintf(outputView, "[yellow]Idony AI Bot v1.3.0 (Multi-Target Scheduling) Initialized[white]\n")
 	fmt.Fprintf(outputView, "Model: %s\n", model)
-	fmt.Fprintf(outputView, "Press [yellow]Ctrl+H[white] to toggle history side panel.\n\n")
+	fmt.Fprintf(outputView, "Press [yellow]Ctrl+H[white] to toggle side panel.\n\n")
 
 	if err := app.SetRoot(mainFlex, true).Run(); err != nil {
 		fmt.Printf("Error running application: %v\n", err)

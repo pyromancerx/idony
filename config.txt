@@ -9,3 +9,8 @@ SWARMUI_PATH=/home/pyromancer/swarmconnector/swarmui
 SWARMUI_URL=http://localhost:7801
 SWARMUI_DEFAULT_MODEL=v1-5-pruned-emaonly.safetensors
 
+# Browser Configuration
+BROWSER_BIN=./idony-browser
+
+
+

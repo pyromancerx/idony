@@ -21,20 +21,24 @@ type ThoughtProcess struct {
 
 // Agent is the core logic engine responsible for the loop.
 type Agent struct {
-	client     *llm.OllamaClient
-	tools      map[string]base.Tool
-	history    []llm.Message
-	store      *db.Store
-	isThinking bool
+	client      *llm.OllamaClient
+	tools       map[string]base.Tool
+	history     []llm.Message
+	store       *db.Store
+	isThinking  bool
+	personality string
+	model       string
 }
 
 // NewAgent initializes a new Agent with a client and a persistence store.
 func NewAgent(client *llm.OllamaClient, store *db.Store) *Agent {
 	a := &Agent{
-		client:     client,
-		tools:      make(map[string]base.Tool),
-		store:      store,
-		isThinking: false,
+		client:      client,
+		tools:       make(map[string]base.Tool),
+		store:       store,
+		isThinking:  false,
+		personality: "",
+		model:       "",
 	}
 	a.loadHistory()
 	return a
@@ -70,13 +74,23 @@ func (a *Agent) GetTools() map[string]base.Tool {
 
 // SetModel updates the underlying model.
 func (a *Agent) SetModel(model string) {
-	a.client.SetModel(model)
+	a.model = model
+	if a.client != nil {
+		a.client.SetModel(model)
+	}
 }
 
 // Run processes a user input through the agentic loop.
 func (a *Agent) Run(ctx context.Context, userInput string) (string, error) {
 	a.isThinking = true
 	defer func() { a.isThinking = false }()
+
+	// If a specific model is set for this agent instance, ensure the client uses it
+	originalModel := a.client.Model
+	if a.model != "" {
+		a.client.SetModel(a.model)
+	}
+	defer func() { a.client.SetModel(originalModel) }()
 
 	a.history = append(a.history, llm.Message{Role: "user", Content: userInput})
 	if a.store != nil {
@@ -151,8 +165,13 @@ func (a *Agent) buildSystemPrompt() string {
 		toolDocs = append(toolDocs, fmt.Sprintf("- %s: %s", t.Name(), t.Description()))
 	}
 
-	personality, err := a.store.GetSetting("personality")
-	if err != nil || personality == "" {
+	personality := a.personality
+	if personality == "" {
+		if a.store != nil {
+			personality, _ = a.store.GetSetting("personality")
+		}
+	}
+	if personality == "" {
 		personality = "You are Idony, a highly opinionated AI assistant."
 	}
 
