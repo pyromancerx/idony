@@ -1,0 +1,52 @@
+# Idony Configuration Template
+# Copy this to config.txt and fill in your details
+
+# --- LLM Backend ---
+MODEL=llama3.1
+OLLAMA_URL=http://localhost:11434
+
+# --- Server Security ---
+SERVER_ADDR=localhost:8080
+# Leave empty to have the server auto-generate a secure key
+SERVER_API_KEY=
+
+# --- Telegram Connection ---
+TELEGRAM_TOKEN=your-telegram-bot-token
+TELEGRAM_ALLOWED_USERS=your-user-id,another-user-id
+
+# --- Image Generation (SwarmUI) ---
+SWARMUI_PATH=/home/pyromancer/swarmconnector/swarmui
+SWARMUI_URL=http://localhost:7801
+SWARMUI_DEFAULT_MODEL=v1-5-pruned-emaonly.safetensors
+
+# --- Browser Automation ---
+BROWSER_BIN=./idony-browser
+
+# --- Media & Transcription ---
+WHISPER_BIN=./bin/whisper-cli
+WHISPER_MODEL=./models/ggml-base.en.bin
+YTDLP_BIN=/usr/bin/yt-dlp
+FFMPEG_BIN=/usr/bin/ffmpeg
+FLITE_BIN=/usr/bin/flite
+
+# --- Email Integration ---
+EMAIL_DEFAULT_ACCOUNT=standard
+EMAIL_TO_ADDRESS=your-email@example.com
+EMAIL_TRUSTED_SENDERS=your-email@example.com
+
+# Standard SMTP/IMAP
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=your-user@example.com
+SMTP_PASS=your-password
+SMTP_USE_SSL=true
+
+IMAP_HOST=imap.example.com
+IMAP_PORT=993
+IMAP_USER=your-user@example.com
+IMAP_PASS=your-password
+IMAP_USE_SSL=true
+
+# Gmail (Use an App Password)
+GMAIL_USER=your-gmail@gmail.com
+GMAIL_PASS=your-app-password

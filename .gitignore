@@ -5,3 +5,4 @@ idony.db
 *.exe
 *.log
 .DS_Store
+config.txt
