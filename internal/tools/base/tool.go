@@ -10,4 +10,6 @@ type Tool interface {
 	Description() string
 	// Execute performs the tool's action and returns the result as a string.
 	Execute(ctx context.Context, input string) (string, error)
+	// Schema returns a UI schema for the mobile app to render dynamically.
+	Schema() map[string]interface{}
 }

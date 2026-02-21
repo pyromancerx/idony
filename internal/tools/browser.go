@@ -60,3 +60,25 @@ func (b *BrowserTool) Execute(ctx context.Context, input string) (string, error)
 
 	return string(output), nil
 }
+
+func (b *BrowserTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"title": "Web Browser",
+		"actions": []map[string]interface{}{
+			{
+				"name":  "search",
+				"label": "Web Search",
+				"fields": []map[string]interface{}{
+					{"name": "query", "label": "Search Query", "type": "string", "required": true},
+				},
+			},
+			{
+				"name":  "scrape",
+				"label": "Scrape URL",
+				"fields": []map[string]interface{}{
+					{"name": "url", "label": "URL", "type": "string", "required": true},
+				},
+			},
+		},
+	}
+}

@@ -1,0 +1,15 @@
+{
+  "name": "Idony AI",
+  "short_name": "Idony",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#121212",
+  "theme_color": "#00bcd4",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/2593/2593635.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

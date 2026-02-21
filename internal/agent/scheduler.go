@@ -34,7 +34,7 @@ func (s *Scheduler) Start(ctx context.Context) {
 }
 
 func (s *Scheduler) loadAndScheduleTasks(ctx context.Context) {
-	tasks, err := s.store.LoadTasks()
+	tasks, err := s.store.LoadScheduledTasks()
 	if err != nil {
 		log.Printf("Error loading tasks for scheduler: %v", err)
 		return
@@ -78,7 +78,7 @@ func (s *Scheduler) executeTask(ctx context.Context, task db.ScheduledTask) {
 	var err error
 	switch task.TargetType {
 	case "subagent":
-		_, err = s.subManager.SpawnNamed(ctx, task.TargetName, task.Prompt)
+		_, err = s.subManager.SpawnNamed(ctx, task.TargetName, task.Prompt, nil)
 	case "council":
 		_, err = s.councilManager.RunCouncilSession(ctx, task.TargetName, task.Prompt)
 	default:
@@ -101,7 +101,7 @@ func (s *Scheduler) executeTask(ctx context.Context, task db.ScheduledTask) {
 }
 
 func (s *Scheduler) AddTask(ctx context.Context, taskType, schedule, prompt, targetType, targetName string) error {
-	err := s.store.SaveTask(taskType, schedule, prompt, targetType, targetName)
+	err := s.store.SaveScheduledTask(taskType, schedule, prompt, targetType, targetName)
 	if err != nil {
 		return err
 	}

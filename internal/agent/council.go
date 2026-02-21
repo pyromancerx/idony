@@ -50,7 +50,7 @@ func (m *CouncilManager) RunCouncilSession(ctx context.Context, councilName, pro
 
 	id := uuid.New().String()[:8]
 	sessionTitle := fmt.Sprintf("Council '%s' Session: %s", councilName, id)
-	err = m.store.SaveSubAgent(id, sessionTitle, "running")
+	err = m.store.SaveSubAgent(id, sessionTitle, "running", "", "")
 	if err != nil {
 		return "", err
 	}

@@ -3,16 +3,21 @@ package llm
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
+	"time"
 )
 
 // Message represents a single message in the conversation history
 type Message struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+	Role    string   `json:"role"`
+	Content string   `json:"content"`
+	Images  []string `json:"images,omitempty"` // Base64 encoded images
 }
 
 // Request represents an Ollama generation request
@@ -39,7 +44,7 @@ type OllamaClient struct {
 func NewOllamaClient(baseURL, model string) *OllamaClient {
 	return &OllamaClient{
 		BaseURL: baseURL,
-		HTTP:    &http.Client{},
+		HTTP:    &http.Client{Timeout: 120 * time.Second},
 		Model:   model,
 	}
 }
@@ -47,6 +52,48 @@ func NewOllamaClient(baseURL, model string) *OllamaClient {
 // SetModel updates the model used for generations
 func (c *OllamaClient) SetModel(model string) {
 	c.Model = model
+}
+
+// ListModels retrieves the available models from the Ollama server
+func (c *OllamaClient) ListModels(ctx context.Context) ([]string, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", c.BaseURL+"/api/tags", nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code %d", resp.StatusCode)
+	}
+
+	var data struct {
+		Models []struct {
+			Name string `json:"name"`
+		} `json:"models"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, err
+	}
+
+	var names []string
+	for _, m := range data.Models {
+		names = append(names, m.Name)
+	}
+	return names, nil
+}
+
+// EncodeImage converts a local file to a base64 string
+func EncodeImage(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return base64.StdEncoding.EncodeToString(data), nil
 }
 
 // GenerateResponse sends a conversation history to Ollama and returns the assistant's response
@@ -62,27 +109,45 @@ func (c *OllamaClient) GenerateResponse(ctx context.Context, messages []Message)
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/api/chat", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
+	maxRetries := 2
+	var lastErr error
 
-	resp, err := c.HTTP.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
+	for i := 0; i <= maxRetries; i++ {
+		if i > 0 {
+			fmt.Printf("[OllamaClient]: Retry %d after error: %v\n", i, lastErr)
+			time.Sleep(time.Second * time.Duration(i))
+		}
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+		req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/api/chat", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return "", fmt.Errorf("failed to create request: %w", err)
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		resp, err := c.HTTP.Do(req)
+		if err != nil {
+			lastErr = err
+			if strings.Contains(err.Error(), "EOF") || strings.Contains(err.Error(), "timeout") {
+				continue
+			}
+			return "", fmt.Errorf("failed to execute request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			lastErr = fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+			continue
+		}
+
+		var ollamaResp Response
+		if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
+			lastErr = fmt.Errorf("failed to decode response: %w", err)
+			continue
+		}
+
+		return ollamaResp.Message.Content, nil
 	}
 
-	var ollamaResp Response
-	if err := json.NewDecoder(resp.Body).Decode(&ollamaResp); err != nil {
-		return "", fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	return ollamaResp.Message.Content, nil
+	return "", fmt.Errorf("failed after %d retries: %v", maxRetries, lastErr)
 }

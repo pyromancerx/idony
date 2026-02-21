@@ -32,3 +32,12 @@ func (g *GeminiCoder) Execute(ctx context.Context, input string) (string, error)
 
 	return string(output), nil
 }
+
+func (g *GeminiCoder) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"title": "Gemini Coding Assistant",
+		"fields": []map[string]interface{}{
+			{"name": "input", "label": "Coding Task", "type": "longtext", "required": true},
+		},
+	}
+}

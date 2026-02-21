@@ -19,3 +19,10 @@ func (t *TimeTool) Description() string {
 func (t *TimeTool) Execute(ctx context.Context, input string) (string, error) {
 	return time.Now().Format(time.RFC1123), nil
 }
+
+func (t *TimeTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"title":  "Get Time",
+		"fields": []map[string]interface{}{},
+	}
+}

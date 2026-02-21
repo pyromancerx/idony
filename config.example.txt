@@ -6,7 +6,7 @@ MODEL=llama3.1
 OLLAMA_URL=http://localhost:11434
 
 # --- Server Security ---
-SERVER_ADDR=localhost:8080
+SERVER_ADDR=0.0.0.0:8080
 # Leave empty to have the server auto-generate a secure key
 SERVER_API_KEY=
 
@@ -28,6 +28,7 @@ WHISPER_MODEL=./models/ggml-base.en.bin
 YTDLP_BIN=/usr/bin/yt-dlp
 FFMPEG_BIN=/usr/bin/ffmpeg
 FLITE_BIN=/usr/bin/flite
+FLITE_VOICE=slt
 
 # --- Email Integration ---
 EMAIL_DEFAULT_ACCOUNT=standard
@@ -50,3 +51,4 @@ IMAP_USE_SSL=true
 # Gmail (Use an App Password)
 GMAIL_USER=your-gmail@gmail.com
 GMAIL_PASS=your-app-password
+\n# MCP Servers\n# Define servers as MCP_SERVER_[NAME]_CMD and MCP_SERVER_[NAME]_ARGS\n# Example for SQLite:\n# MCP_SERVER_SQLITE_CMD=uv\n# MCP_SERVER_SQLITE_ARGS=tool run mcp-server-sqlite --db-path my_data.db

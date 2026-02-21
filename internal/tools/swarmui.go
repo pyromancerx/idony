@@ -65,3 +65,14 @@ func (s *SwarmUITool) Execute(ctx context.Context, input string) (string, error)
 
 	return string(output), nil
 }
+
+func (s *SwarmUITool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"title": "Image Generation (SwarmUI)",
+		"fields": []map[string]interface{}{
+			{"name": "prompt", "label": "Image Prompt", "type": "longtext", "required": true},
+			{"name": "model", "label": "Model Name", "type": "string", "hint": "v1-5-pruned-emaonly.safetensors"},
+			{"name": "resolution", "label": "Resolution", "type": "string", "hint": "512x512"},
+		},
+	}
+}

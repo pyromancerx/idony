@@ -79,3 +79,32 @@ func (c *CouncilTool) Execute(ctx context.Context, input string) (string, error)
 		return "", fmt.Errorf("invalid action: %s", req.Action)
 	}
 }
+
+func (c *CouncilTool) Schema() map[string]interface{} {
+	return map[string]interface{}{
+		"title": "Agent Council",
+		"actions": []map[string]interface{}{
+			{
+				"name":  "run",
+				"label": "Start Session",
+				"fields": []map[string]interface{}{
+					{"name": "name", "label": "Council Name", "type": "string", "required": true},
+					{"name": "problem", "label": "Problem to Solve", "type": "longtext", "required": true},
+				},
+			},
+			{
+				"name":  "define",
+				"label": "Define Council",
+				"fields": []map[string]interface{}{
+					{"name": "name", "label": "Name", "type": "string", "required": true},
+					{"name": "members", "label": "Members (comma-separated)", "type": "string", "hint": "agent1,agent2"},
+				},
+			},
+			{
+				"name":  "list",
+				"label": "List Councils",
+				"fields": []map[string]interface{}{},
+			},
+		},
+	}
+}
